@@ -8,7 +8,8 @@
   "devDependencies": {
     "@remix-run/node": "^2.9.2",
     "@types/bun": "latest",
-    "@types/react": "^18.3.2"
+    "@types/react": "^18.3.2",
+    "semantic-release": "^23.1.1"
   },
   "peerDependencies": {
     "@remix-run/react": "^2.9.2",
