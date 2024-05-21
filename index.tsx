@@ -24,7 +24,7 @@ type DialogContext<
   setOpen: Dispatch<SetStateAction<boolean>>;
   loaderData: SerializeFrom<L>;
   actionData: SerializeFrom<A> | undefined;
-  refreshLoaderData: () => void;
+  refetchData: () => void;
   onSubmit: (values: unknown) => void;
   error: string | null;
 };
@@ -45,7 +45,7 @@ export const RouteDialogWrapper = <
   A extends ActionFunction,
 >({
   children,
-  url: _url,
+  url,
   open,
   setOpen,
 }: {
@@ -54,39 +54,41 @@ export const RouteDialogWrapper = <
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) => {
-  const openRef = useRef(open);
+  const openRef = useRef(false);
   const revalidator = useRevalidator();
   const [loaderData, setLoaderData] = useState<SerializeFrom<L>>();
   const [actionData, setActionData] = useState<SerializeFrom<A>>();
   const [error, setError] = useState<string | null>(null);
-  const [refreshCount, setRefreshCount] = useState(0);
 
-  const url = `${_url}?${refreshCount}`;
+  const fetchData = useCallback(() => {
+    fetch(url, {
+      headers: { Accept: "application/json" },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        setLoaderData(json as SerializeFrom<L>);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error) setError(err.message);
+        console.error(err);
+      });
+  }, [url]);
 
   useEffect(() => {
-    if (!open || !_url) {
-      // timeout to allow animations to run
-      setTimeout(() => setLoaderData(undefined), 100);
-      setActionData(undefined);
-      if (!open && openRef.current) {
-        // if it was open and is closing
-        revalidator.revalidate();
-      }
+    if (open === openRef.current) return;
+
+    if (open) {
+      fetchData();
     } else {
-      fetch(url, {
-        headers: { Accept: "application/json" },
-      })
-        .then((res) => res.json())
-        .then((json) => {
-          setLoaderData(json as SerializeFrom<L>);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof Error) setError(err.message);
-          console.error(err);
-        });
+      // timeout to allow animations to run
+      setTimeout(() => {
+        setLoaderData(undefined);
+        setActionData(undefined);
+        revalidator.revalidate();
+      }, 100);
     }
     openRef.current = open;
-  }, [_url, open, refreshCount, revalidator, url]);
+  }, [open, revalidator, url]);
 
   const onSubmit = useCallback(
     (values: unknown) => {
@@ -107,10 +109,6 @@ export const RouteDialogWrapper = <
     [url],
   );
 
-  const refreshLoaderData = useCallback(() => {
-    setRefreshCount((count) => count + 1);
-  }, []);
-
   if (loaderData === undefined) return null;
 
   return (
@@ -120,7 +118,7 @@ export const RouteDialogWrapper = <
         setOpen,
         loaderData,
         actionData,
-        refreshLoaderData,
+        refetchData: fetchData,
         onSubmit,
         error,
       }}
